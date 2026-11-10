@@ -3383,7 +3383,7 @@ function syncLeadModal() {
         </a>
       </div>`;
   const addr = document.getElementById('lead-modal-address');
-  if (addr) addr.textContent = '📍 ' + fullAddressStr(lead);
+  if (addr) addr.textContent = '📍 ' + fullAddressTitle(lead);
   if (body) body.innerHTML = renderDetail(lead);
   overlay.classList.add('open');
 }
@@ -3552,7 +3552,7 @@ function renderDialerMain() {
     const zAddr = body.querySelector('#dialer-zillow-addr');
     const mapFrame = body.querySelector('#dialer-map-frame');
     if (zEl && addr) zEl.href = 'https://www.zillow.com/homes/' + encodeURIComponent(addr) + '_rb/';
-    if (zAddr && addr) zAddr.textContent = addr;
+    if (zAddr && addr) zAddr.textContent = titleCaseAddress(addr);
     const zZest = body.querySelector('#dialer-zillow-zest');
     if (zZest && cur2.lead.zestimate) {
       const znum = parseFloat(String(cur2.lead.zestimate).replace(/[^0-9.\-]/g, ''));
