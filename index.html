@@ -202,6 +202,9 @@ if (location.hostname === 'lucarebuffi-rgr.github.io') {
     font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; white-space: nowrap; background: rgba(255,255,255,.025);
   }
   .code-badge .code-date { font-weight: 400; opacity: 0.8; margin-left: 5px; }
+  /* tax suit pill — same badge shape, links to the county case search */
+  .code-badge.taxsuit-badge { text-decoration: none; cursor: pointer; }
+  .code-badge.taxsuit-badge:hover { filter: brightness(1.25); }
 
   .call-link { font-size: 14px; color: #e8c476; font-weight: 700; white-space: nowrap; }
   .call-link:hover { color: #f3dda0; }
@@ -265,6 +268,10 @@ if (location.hostname === 'lucarebuffi-rgr.github.io') {
   .key-banner-urgent { background: linear-gradient(135deg, rgba(217,83,79,.22), rgba(217,83,79,.06)); border-color: rgba(217,83,79,.65); }
   .key-banner-urgent .kb-label { color: #f0a5a1; }
   .key-banner-urgent .kb-value { color: #ffd7d5; }
+  .key-banner-suit { background: linear-gradient(135deg, rgba(224,101,106,.16), rgba(224,101,106,.05)); border-color: rgba(224,101,106,.5); }
+  .key-banner-suit .kb-label { color: #f0a5a8; }
+  .key-banner-suit .kb-value { color: #ffd7d8; font-size: 16px; }
+  .key-banner-suit .kb-value a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
   .tree-box { background: #0b1626; border: 1px solid rgba(212,168,67,.28); border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.75; white-space: pre-wrap; }
   .vtree-wrap { overflow-x: auto; padding-bottom: 6px; }
 .vtree { padding: 6px 4px 2px; }
@@ -1610,6 +1617,7 @@ function parseSheet(values, tabId) {
       whyHot: tabId === 'zombie' ? get(row, 'whyhot') : '',
       dateFlagged: tabId === 'zombie' ? sheetDateStr(get(row, 'dateflagged')) : '',
       tdAmount: get(row, 'tdamount'),
+      taxSuit: get(row, 'taxsuit'),
       tdYears: get(row, 'tdyearsdelinquent') || get(row, 'tdyears'),
       pfAuctionDate: sheetDateStr(get(row, 'pfauctiondate')),
       beds: get(row, 'beds'),
@@ -1922,6 +1930,36 @@ function codeBadges(lead) {
   }).join('');
 }
 
+/* Tax Suit pill — sheet column T ("Tax Suit"), e.g. "D44880-24 (Tarrant, filed 11/19/2024)".
+   Pill shows cause number + county and links to that county's case-search
+   portal (no stable per-case URL exists). Unknown county → unlinked pill.
+   Renders only when column T is non-empty. */
+const TAX_SUIT_PORTALS = {
+  Tarrant: 'https://portal-txtarrant.tylertech.cloud/PublicAccess',
+  Dallas: 'https://courtsportal.dallascounty.org/DALLASPROD',
+  Collin: 'https://apps2.collincountytx.gov/JudicialOnlineSearch2/case',
+  Denton: 'https://justice1.dentoncounty.gov/PublicAccess',
+};
+const TAX_SUIT_COLOR = '#e0656a';
+function parseTaxSuit(raw) {
+  const m = String(raw || '').trim().match(/^(.+?)\s*\(([^,]+),\s*filed\s+(.+?)\)\s*$/);
+  if (!m) return { cause: String(raw || '').trim(), county: '', filed: '' };
+  return { cause: m[1].trim(), county: m[2].trim(), filed: m[3].trim() };
+}
+function taxSuitBadge(lead) {
+  const raw = (lead.taxSuit || '').trim();
+  if (!raw) return '';
+  const ts = parseTaxSuit(raw);
+  const portal = TAX_SUIT_PORTALS[ts.county] || '';
+  const label = ts.county ? `⚖️ ${ts.cause} · ${ts.county}` : `⚖️ ${ts.cause}`;
+  const title = portal
+    ? `Tax Suit: ${raw} — click to open the ${ts.county} County case search`
+    : `Tax Suit: ${raw}`;
+  const style = `background:${TAX_SUIT_COLOR}1e;color:${TAX_SUIT_COLOR};border-color:${TAX_SUIT_COLOR}66`;
+  if (portal) return `<a class="code-badge taxsuit-badge" href="${portal}" target="_blank" rel="noopener" title="${escapeHtml(title)}" style="${style}">${escapeHtml(label)}</a>`;
+  return `<span class="code-badge taxsuit-badge" title="${escapeHtml(title)}" style="${style}">${escapeHtml(label)}</span>`;
+}
+
 function listDatesLine(lead) {
   return CODE_ORDER.filter(c => lead.codes[c]).map(c => {
     return `${c}: ${escapeHtml(lead.codes[c])}`;
@@ -1957,7 +1995,7 @@ function renderCard(lead) {
             ${lead.hidden ? `<span class="hidden-badge">HIDDEN</span>` : ''}
           </div>
           <div class="lead-address">📍 ${escapeHtml(titleCaseAddress(lead.address))}, ${escapeHtml(titleCaseAddress(lead.city))} ${escapeHtml(lead.state)} ${escapeHtml(lead.zip)}</div>
-          <div class="code-badges">${codeBadges(lead)}</div>
+          <div class="code-badges">${codeBadges(lead)}${taxSuitBadge(lead)}</div>
           ${tab === 'zombie' && lead.pocName && !(lead.familyTreeData && lead.familyTreeData.topHeir) ? `<div class="lead-poc">Main POC: ${escapeHtml(lead.pocName)}</div>` : ''}
           ${['new','trying','followup'].includes(lead.status) ? cadenceCardHTML(lead) : ''}
           ${probateCardHTML(lead)}
@@ -2058,6 +2096,17 @@ function keyBannersHTML(lead) {
       <div class="kb-value">${escapeHtml(raw)}</div>
     </div>`;
   }
+  if ((lead.taxSuit || '').trim()) {
+    const ts = parseTaxSuit(lead.taxSuit);
+    const portal = TAX_SUIT_PORTALS[ts.county] || '';
+    const value = portal
+      ? `<a href="${portal}" target="_blank" rel="noopener">${escapeHtml(ts.cause || lead.taxSuit)}</a>`
+      : escapeHtml(ts.cause || lead.taxSuit);
+    out += `<div class="key-banner key-banner-suit">
+      <div><div class="kb-label">⚖️ Tax Suit${ts.county ? ' · ' + escapeHtml(ts.county) : ''}</div><div class="kb-sub">${ts.filed ? 'filed ' + escapeHtml(ts.filed) : 'from county records'} · read-only</div></div>
+      <div class="kb-value">${value}</div>
+    </div>`;
+  }
   return out;
 }
 
@@ -2089,7 +2138,7 @@ function renderDetail(lead) {
         ${isStacked ? `<div class="fin-field"><label>Main POC — living contact (name)</label><input type="text" placeholder="e.g. Ashlee Melson" value="${escapeHtml(lead.mainPocName || '')}" data-field-input="${escapeHtml(lead.key)}" data-field-name="mainPocName" /></div><div class="fin-field"><label>Main POC Phone (CRM entry wins; the sheet Phone column is the fallback)</label><input type="tel" placeholder="(555) 123-4567" value="${escapeHtml(lead.phone || '')}" data-phone-input="${escapeHtml(lead.key)}" /></div><div class="fin-field"><label>Deceased Owner — name only (never call)</label><input type="text" placeholder="e.g. Kathyleen Melson" value="${escapeHtml(lead.deceasedOwnerName || '')}" data-field-input="${escapeHtml(lead.key)}" data-field-name="deceasedOwnerName" /></div>` : ''}
         <div class="fin-field">
           <label>Motivation signals</label>
-          <div class="code-badges" style="margin-top:8px;">${codeBadges(lead) || '<span style="font-size:12px;color:#8a97a8;">none</span>'}</div>
+          <div class="code-badges" style="margin-top:8px;">${(codeBadges(lead) + taxSuitBadge(lead)) || '<span style="font-size:12px;color:#8a97a8;">none</span>'}</div>
           ${listDatesLine(lead) ? `<div style="font-size:11px;color:#8a97a8;margin-top:4px;">${listDatesLine(lead)}</div>` : ''}
         </div>
         ${lead.dateFlagged ? `<div class="fin-field"><label>Date Flagged</label><div style="padding:8px 0;font-size:14px;" class="mono">${escapeHtml(lead.dateFlagged)}</div></div>` : ''}
@@ -2670,7 +2719,7 @@ async function unhideLead(key) {
 function attachCardListeners() {
   document.querySelectorAll('[data-row-toggle]').forEach(row => {
     row.addEventListener('click', (e) => {
-      if (e.target.closest('[data-fire],[data-call-link],.quick-link-btn,.toggle-btn,input,select,textarea,button')) {
+      if (e.target.closest('[data-fire],[data-call-link],.quick-link-btn,.taxsuit-badge,.toggle-btn,input,select,textarea,button')) {
         // let specific controls handle their own clicks, except the toggle button
         if (!e.target.closest('.toggle-btn')) return;
       }
